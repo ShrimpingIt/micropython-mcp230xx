@@ -71,7 +71,7 @@ class MCP23017(object):
         assert pin >= 0 and pin < self.num_gpios, "Pin number %s is invalid, only 0-%s are valid" % (pin, self.num_gpios)
         #assert self.direction & (1 << pin) == 0, "Pin %s not set to output" % pin
         if not currvalue:
-             currvalue = self.get(port)
+            currvalue = self.get(port)
         newvalue = self._changebit(currvalue, pin, value)
         self.put(port, newvalue)
         return newvalue
