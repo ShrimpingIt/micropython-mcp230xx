@@ -1,5 +1,5 @@
 # Copyright (c) 2014 Adafruit Industries
-# Author: Tony DiCola
+# Author: Tony DiCola, ported for Micropython ESP8266 by Cefn Hoile
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,13 +25,13 @@ IN      = 1
 HIGH    = True
 LOW     = False
 
-RISING      = 1
-FALLING     = 2
-BOTH        = 3
+RISING  = 1
+FALLING = 2
+BOTH    = 3
 
-PUD_OFF  = 0
-PUD_DOWN = 1
-PUD_UP   = 2
+PUD_OFF = 0
+PUD_DOWN= 1
+PUD_UP  = 2
 
 class MCP():
     """Base class to represent an MCP230xx series GPIO extender.  Is compatible
@@ -57,19 +57,22 @@ class MCP():
         self.write_gppu()
 
     def _validate_pin(self, pin):
+        """Promoted to mcp implementation from prior Adafruit GPIO superclass"""
         # Raise an exception if pin is outside the range of allowed values.
         if pin < 0 or pin >= self.NUM_GPIO:
             raise ValueError('Invalid GPIO value, must be between 0 and {0}.'.format(self.NUM_GPIO))
 
     def writeList(self, register, data):
+        """Introduced to match the writeList implementation of the Adafruit I2C _device member"""
         return self.i2c.writeto_mem(self.address, register, data)
 
     def readList(self, register, length):
+        """Introduced to match the readList implementation of the Adafruit I2C _device member"""
         return self.i2c.readfrom_mem(self.address, register, length)
 
     def setup(self, pin, value):
         """Set the input or output mode for a specified pin.  Mode should be
-        either GPIO.OUT or GPIO.IN.
+        either OUT or IN.
         """
         self._validate_pin(pin)
         # Set bit to 1 for input or 0 for output.
@@ -78,13 +81,13 @@ class MCP():
         elif value == OUT:
             self.iodir[int(pin/8)] &= ~(1 << (int(pin%8)))
         else:
-            raise ValueError('Unexpected value.  Must be GPIO.IN or GPIO.OUT.')
+            raise ValueError('Unexpected value.  Must be IN or OUT.')
         self.write_iodir()
 
 
     def output(self, pin, value):
         """Set the specified pin the provided high/low value.  Value should be
-        either GPIO.HIGH/GPIO.LOW or a boolean (True = HIGH).
+        either HIGH/LOW or a boolean (True = HIGH).
         """
         self.output_pins({pin: value})
 
@@ -105,20 +108,20 @@ class MCP():
 
 
     def input(self, pin):
-        """Read the specified pin and return GPIO.HIGH/True if the pin is pulled
-        high, or GPIO.LOW/False if pulled low.
+        """Read the specified pin and return HIGH/True if the pin is pulled
+        high, or LOW/False if pulled low.
         """
         return self.input_pins([pin])[0]
 
     def input_pins(self, pins):
         """Read multiple pins specified in the given list and return list of pin values
-        GPIO.HIGH/True if the pin is pulled high, or GPIO.LOW/False if pulled low.
+        HIGH/True if the pin is pulled high, or LOW/False if pulled low.
         """
         [self._validate_pin(pin) for pin in pins]
         # Get GPIO state.
-        gpio = self.readList(self.GPIO, self.gpio_bytes)
+        self.read_gpio()
         # Return True if pin's bit is set.
-        return [(gpio[int(pin/8)] & 1 << (int(pin%8))) > 0 for pin in pins]
+        return [(self.gpio[int(pin/8)] & 1 << (int(pin%8))) > 0 for pin in pins]
 
 
     def pullup(self, pin, enabled):
@@ -131,6 +134,9 @@ class MCP():
         else:
             self.gppu[int(pin/8)] &= ~(1 << (int(pin%8)))
         self.write_gppu()
+
+    def read_gpio(self):
+        self.gpio = self.readList(self.GPIO, self.gpio_bytes)
 
     def write_gpio(self, gpio=None):
         """Write the specified byte value to the GPIO registor.  If no value
