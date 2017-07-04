@@ -21,8 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from machine import I2C
+from machine import I2C, Pin
 import time
+
+#addresses = [MCP23017_IODIRA, MCP23017_IODIRB, MCP23017_GPIOA, MCP23017_GPIOB, MCP23017_GPPUA, MCP23017_GPPUB, MCP23017_OLATA, MCP23017_OLATB]
 
 MCP23017_IODIRA = 0x00
 MCP23017_IODIRB = 0x01
@@ -38,8 +40,10 @@ class MCP23017(object):
     INPUT = 1
 
     def __init__(self, address=32, gpioScl=5, gpioSda=4):
-        self.i2c = I2C(scl=Pin(gpioScl), sda=Pin(gpioSda))
-        self.address = 32
+        self.address = address
+        sclPin = Pin(gpioScl, mode=Pin.OUT)
+        sdaPin = Pin(gpioSda, mode=Pin.OUT)
+        self.i2c = I2C(scl=sclPin, sda=sdaPin, freq=100000)
         self.num_gpios = 16
 
         self.put(MCP23017_IODIRA, 0xFF) # all inputs on port A
@@ -49,10 +53,10 @@ class MCP23017(object):
         self.put(MCP23017_GPPUA, 0x00)
         self.put(MCP23017_GPPUB, 0x00)
 
-    def put(reg,val):
-        self.i2c.writeto_mem(self.address,reg,[val])
+    def put(self, reg, val):
+        self.i2c.writeto_mem(self.address,reg,bytearray([val]))
 
-    def get(reg):
+    def get(self, reg):
         buf = self.i2c.readfrom_mem(self.address,reg,1)
         return buf[0]
 
@@ -74,59 +78,42 @@ class MCP23017(object):
 
 
     def pullup(self, pin, value):
-        if self.num_gpios <= 8:
-            return self._readandchangepin(MCP23008_GPPUA, pin, value)
-        if self.num_gpios <= 16:
-            lvalue = self._readandchangepin(MCP23017_GPPUA, pin, value)
-            if (pin < 8):
-                return
-            else:
-                return self._readandchangepin(MCP23017_GPPUB, pin-8, value) << 8
+        lvalue = self._readandchangepin(MCP23017_GPPUA, pin, value)
+        if (pin < 8):
+            return
+        else:
+            return self._readandchangepin(MCP23017_GPPUB, pin-8, value) << 8
 
     # Set pin to either input or output mode
     def config(self, pin, mode):
-        if self.num_gpios <= 8:
+        if (pin < 8):
             self.direction = self._readandchangepin(MCP23017_IODIRA, pin, mode)
-        if self.num_gpios <= 16:
-            if (pin < 8):
-                self.direction = self._readandchangepin(MCP23017_IODIRA, pin, mode)
-            else:
-                self.direction |= self._readandchangepin(MCP23017_IODIRB, pin-8, mode) << 8
+        else:
+            self.direction |= self._readandchangepin(MCP23017_IODIRB, pin-8, mode) << 8
 
         return self.direction
 
     def output(self, pin, value):
         # assert self.direction & (1 << pin) == 0, "Pin %s not set to output" % pin
-        if self.num_gpios <= 8:
-            self.outputvalue = self._readandchangepin(MCP23008_GPIOA, pin, value, self.get(MCP23008_OLATA))
-        if self.num_gpios <= 16:
-            if (pin < 8):
-                self.outputvalue = self._readandchangepin(MCP23017_GPIOA, pin, value, self.get(MCP23017_OLATA))
-            else:
-                self.outputvalue = self._readandchangepin(MCP23017_GPIOB, pin-8, value, self.get(MCP23017_OLATB)) << 8
+        if (pin < 8):
+            self.outputvalue = self._readandchangepin(MCP23017_GPIOA, pin, value, self.get(MCP23017_OLATA))
+        else:
+            self.outputvalue = self._readandchangepin(MCP23017_GPIOB, pin-8, value, self.get(MCP23017_OLATB)) << 8
 
-        return self.outputvalue
-
-
-        self.outputvalue = self._readandchangepin(MCP23017_IODIRA, pin, value, self.outputvalue)
         return self.outputvalue
 
     def input(self, pin):
         assert pin >= 0 and pin < self.num_gpios, "Pin number %s is invalid, only 0-%s are valid" % (pin, self.num_gpios)
         assert self.direction & (1 << pin) != 0, "Pin %s not set to input" % pin
-        if self.num_gpios <= 8:
-            value = self.get(MCP23008_GPIOA)
-        elif self.num_gpios > 8 and self.num_gpios <= 16:
-            value = self.get(MCP23017_GPIOA)
-            value |= self.get(MCP23017_GPIOB) << 8
+        value = self.get(MCP23017_GPIOA)
+        value |= self.get(MCP23017_GPIOB) << 8
         return value & (1 << pin)
 
 # RPi.GPIO compatible interface for MCP23017 and MCP23008
 
-if __name__ == '__main__':
-    # ***************************************************
-    # Set num_gpios to 8 for MCP23008 or 16 for MCP23017!
-    # ***************************************************
+
+def main():
+
     mcp = MCP23017() 
 
     # Set pins 0, 1 and 2 to output (you can set pins 0..15 this way)
@@ -139,12 +126,13 @@ if __name__ == '__main__':
     mcp.pullup(3, 1)
 
     # Read input pin and display the results
-    print "Pin 3 = %d" % (mcp.input(3) >> 3)
+
+    print("Pin 3 = {}".format(mcp.input(3) >> 3))
 
     # Python speed test on output 0 toggling at max speed
-    print "Starting blinky on pin 0 (CTRL+C to quit)"
+    print("Starting blinky on pin 0 (CTRL+C to quit)")
     while (True):
-      mcp.output(0, 1)  # Pin 0 High
-      time.sleep(1);
-      mcp.output(0, 0)  # Pin 0 Low
-      time.sleep(1);
+        mcp.output(0, 1)  # Pin 0 High
+        time.sleep(1)
+        mcp.output(0, 0)  # Pin 0 Low
+        time.sleep(1)
