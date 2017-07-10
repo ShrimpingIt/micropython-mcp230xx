@@ -107,19 +107,20 @@ class MCP():
         self.write_gpio()
 
 
-    def input(self, pin):
+    def input(self, pin, read=True):
         """Read the specified pin and return HIGH/True if the pin is pulled
         high, or LOW/False if pulled low.
         """
-        return self.input_pins([pin])[0]
+        return self.input_pins([pin], read)[0]
 
-    def input_pins(self, pins):
+    def input_pins(self, pins, read=True):
         """Read multiple pins specified in the given list and return list of pin values
         HIGH/True if the pin is pulled high, or LOW/False if pulled low.
         """
         [self._validate_pin(pin) for pin in pins]
-        # Get GPIO state.
-        self.read_gpio()
+        if read:
+            # Get GPIO state.
+            self.read_gpio()
         # Return True if pin's bit is set.
         return [(self.gpio[int(pin/8)] & 1 << (int(pin%8))) > 0 for pin in pins]
 
