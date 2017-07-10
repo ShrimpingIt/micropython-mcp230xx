@@ -16,7 +16,7 @@ To use, wire up the GPIO expander chip following this loom...
 
 For example, the following will set the output values of pins 10-15 and read the logic value (True or False) of pins 0-9
 
-```
+```python
 import mcp
 
 io = mcp.MCP23017()
