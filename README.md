@@ -30,7 +30,7 @@ If you wish to use a different I2C address, or a different GPIO-numbered SDA or 
 
 The default constructor arguments mean that MCP23017() is equivalent to MPC23017(address=0x20, gpioScl=5, gpioSda=4).
 
-A handy visual reference is this from mathworks...
+A handy visual reference is this from mathworks, but note that for ESP8266 power should be at 3.3V not 5V, to make sure logic levels are correct and that the serial data line doesn't overload SDA.
 
 ![MCP Pinout](https://www.mathworks.com/help/examples/raspberrypiio_product/win64/mcp23017_circuit.png)
 
