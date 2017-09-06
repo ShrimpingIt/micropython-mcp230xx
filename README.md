@@ -30,6 +30,10 @@ If you wish to use a different I2C address, or a different GPIO-numbered SDA or 
 
 The default constructor arguments mean that MCP23017() is equivalent to MPC23017(address=0x20, gpioScl=5, gpioSda=4).
 
+A handy visual reference is this from mathworks...
+
+![MCP Pinout](https://www.mathworks.com/help/examples/raspberrypiio_product/win64/mcp23017_circuit.png)
+
 For example, the following will set the output values of pins 10-15 and read the logic value (True or False) of pins 0-9
 
 ```python
