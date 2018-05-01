@@ -68,7 +68,7 @@ class MCP():
 
     def readList(self, register, length):
         """Introduced to match the readList implementation of the Adafruit I2C _device member"""
-        return self.i2c.readfrom_mem(self.address, register, length)
+        return bytearray(self.i2c.readfrom_mem(self.address, register, length))
 
     def setup(self, pin, value):
         """Set the input or output mode for a specified pin.  Mode should be
