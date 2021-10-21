@@ -56,3 +56,33 @@ for pinNum in inPins:
 while True:
     print(io.input_pins(inPins))
 ```
+
+Example for using interrupts.
+```python
+from machine import Pin
+import mcp
+
+io = mcp.MCP23017()
+
+# Using PortB(0) and PortB(2) as input
+io.setup(8, mcp.IN)
+io.setup(10, mcp.IN)
+
+# Enable interrupts for both pins
+io.set_interrupt(8, True)
+io.set_interrupt(10, True)
+
+# Set the polarity of the INTx-pins to aktiv high
+io.configure(interrupt_polarity=True)
+
+# Callback function for the interrupt
+def callback(p):
+    print("Interrupt captured")
+    print("These are the states of the pins:")
+    print(io.read_captured_gpio())
+
+# The INTB-pin is connected to GPIO12
+int_pin = Pin(12, Pin.IN)
+int_pin.irq(trigger=Pin.IRQ_RISING, handler=callback)
+
+```

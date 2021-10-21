@@ -52,6 +52,12 @@ class MCP():
         self.iodir = bytearray(self.gpio_bytes)  # Default direction to all inputs.
         self.gppu = bytearray(self.gpio_bytes)  # Default to pullups disabled.
         self.gpio = bytearray(self.gpio_bytes)
+        self.intcon = bytearray(self.gpio_bytes)
+        self.intcap = bytearray(self.gpio_bytes)
+        self.defval = bytearray(self.gpio_bytes)
+        self.gpinten = bytearray(self.gpio_bytes)
+        self.intf = bytearray(self.gpio_bytes)
+        self.iocon = bytearray(self.gpio_bytes)
         # Write current direction and pullup buffer state.
         self.write_iodir()
         self.write_gppu()
@@ -163,6 +169,141 @@ class MCP():
             self.gppu = gppu
         self.writeList(self.GPPU, self.gppu)
 
+    def set_interrupt(self, pin, interrupt_enable: bool, defval: bool=False, defval_value: bool=False):
+        """
+        Set the interrupt mode for a specified pin.
+        interrupt_enable: true or false - enable oder disable the interrupt feature
+        defval: true or false - Interrupt from DEFVAL register or pin change
+        defval_value: 0 or 1 - Value for the DEFVal register when using defval
+        """
+        self._validate_pin(pin)
+        # Set bit to 1 for interrupt on or 0 for off
+        if interrupt_enable:
+            self.gpinten[int(pin/8)] |= 1 << (int(pin%8))
+        else:
+            self.gpinten[int(pin/8)] &= ~(1 << (int(pin%8)))
+
+        if defval and defval_value:
+            self.defval[int(pin/8)] |= 1 << (int(pin%8))
+        elif defval and not defval_value:
+            self.defval[int(pin/8)] &= ~(1 << (int(pin%8)))
+
+        if defval:
+            self.intcon[int(pin/8)] |= 1 << (int(pin%8))
+
+        self.write_gpinten()
+        self.write_defval()
+        self.write_intcon()
+
+    def write_intcon(self, intcon=None):
+        """Write the specified byte value to the INTCON registor.  If no value
+        specified the current buffered value will be written.
+        """
+        if intcon is not None:
+            self.intcon = intcon
+        self.writeList(self.INTCON, self.intcon)
+
+    def write_defval(self, defval=None):
+        """Write the specified byte value to the DEFVAL registor.  If no value
+        specified the current buffered value will be written.
+        """
+        if defval is not None:
+            self.defval = defval
+        self.writeList(self.DEFVAL, self.defval)
+
+    def write_gpinten(self, gpinten=None):
+        """Write the specified byte value to the GPINTEN registor.  If no value
+        specified the current buffered value will be written.
+        """
+        if gpinten is not None:
+            self.gpinten = gpinten
+        self.writeList(self.GPINTEN, self.gpinten)
+
+    def read_interrupt_gpio(self):
+        '''
+        Reads the pinnumber witch caused the interrupt from the INTF-Registor
+        '''
+        self.intf = self.readList(self.INTF, self.gpio_bytes)
+     
+        pin = 0
+        second_Byte = False
+        for i in self.intf:
+            while True:
+                if i <= 0:
+                    break
+                elif i & 1 == 1:
+                    break
+                i = i >> 1
+                pin += 1
+            if not second_Byte:
+                pin += 8
+                second_Byte = True
+
+        return pin
+
+    def read_captured_gpio(self):
+        '''
+        Read the states of the gpios in the moment when the interrupt was captured from the INTCAP-Registor.
+        Returns a dict with all pins and thier states
+        '''
+        self.intcap = self.readList(self.INTCAP, self.gpio_bytes)
+
+        states = dict()
+        second_Byte = False
+        for s in self.intcap:
+            for i in range(0, 8):
+                if s & 1 == 1:
+                    if second_Byte:
+                        states[i + 8] = True
+                    else:
+                        states[i] = True
+                else:
+                    if second_Byte:
+                        states[i + 8] = False
+                    else:
+                        states[i] = False
+                s = s >> 1
+            second_Byte = True
+
+        return states
+
+    def configure(self, int_mirror: bool=False, opendrain: bool=False, interrupt_polarity: bool=False):
+        """
+        Configures the IOCON registor
+        int_mirror: true or false - Mirror the INTx Pins or not
+        opendrain: true or false - Interrupt pins are Open-drain output or Actice driver output
+        interrupt_polarity: true or false - INT pin is active high or low
+        """
+        if int_mirror:
+            self.iocon[0] |= 1 << 6
+            self.iocon[1] |= 1 << 6
+        else:
+            self.iocon[0] &= ~(1 << 6)
+            self.iocon[1] &= ~(1 << 6)
+
+        if interrupt_polarity:
+            self.iocon[0] |= 1 << 1
+            self.iocon[1] |= 1 << 1
+        else:
+            self.iocon[0] &= ~(1 << 1)
+            self.iocon[1] &= ~(1 << 1)
+
+        if opendrain:
+            self.iocon[0] |= 1 << 2
+            self.iocon[1] |= 1 << 2
+        else:
+            self.iocon[0] &= ~(1 << 2)
+            self.iocon[1] &= ~(1 << 2)
+
+        self.write_iocon()
+
+    def write_iocon(self, iocon=None):
+        """Write the specified byte value to the IOCON registor.  If no value
+        specified the current buffered value will be written.
+        """
+        if iocon is not None:
+            self.iocon = iocon
+        self.writeList(self.IOCON, self.iocon)
 
 class MCP23017(MCP):
     """MCP23017-based GPIO class with 16 GPIO pins."""
@@ -171,6 +312,12 @@ class MCP23017(MCP):
     IODIR    = 0x00
     GPIO     = 0x12
     GPPU     = 0x0C
+    INTCON   = 0x08 # Interrupt-on-Change Control Register
+    GPINTEN  = 0X04 # Interrupt-on-Change Pins
+    DEFVAL   = 0x06 # Default Value Register
+    IOCON    = 0x0A # I/O Expander Configuration Register
+    INTF     = 0x0E # Interrupt Flag Register
+    INTCAP   = 0x10 # Interrupt Captured Value For Port Register
 
 
 class MCP23008(MCP):
@@ -180,6 +327,12 @@ class MCP23008(MCP):
     IODIR    = 0x00
     GPIO     = 0x09
     GPPU     = 0x06
+    INTCON   = 0x04 # Interrupt-on-Change Control Register
+    GPINTEN  = 0X02 # Interrupt-on-Change Pins
+    DEFVAL   = 0x03 # Default Value Register
+    IOCON    = 0x05 # I/O Expander Configuration Register
+    INTF     = 0x07 # Interrupt Flag Register
+    INTCAP   = 0x08 # Interrupt Captured Value For Port Register
 
 if __name__=="__main__":
     io = MCP23017()
